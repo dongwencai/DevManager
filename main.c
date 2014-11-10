@@ -23,35 +23,41 @@
 #include <string.h>
 #include <list.h>
 #define DEVICECONFIG    "/etc/deviceList.conf"
-
+typedef struct {
+    char so_name[256];
+    int (*device_open)();
+    void *(*device_listen)();
+    MSG (*msg_transale)(void *context);
+    int (*device_close)();
+}DEVCONTEXT;
 int load_device(PLIST pDevList);
 
 static int load_config(const char *config,PLIST *pphead)
 {
     FILE *fp = NULL;
     int cnt = 0;
-    char *p_context = NULL;
+    DEVCONTEXT *p_context = NULL;
     fp = fopen(config,"r");
     if(!fp)     return -1;
     while(1)
     {
        if(!p_context) 
        {
-           p_context = (char *)malloc(256);
+           p_context = (DEVCONTEXT *)malloc(sizeof(DEVCONTEXT));
            if(!p_context)   return -1;
-           memset(p_context,0,256);
+           memset(p_context,0,sizeof(DEVCONTEXT));
        }
 
-       if(fgets(p_context,256,fp))
+       if(fgets(p_context->so_name,256,fp))
        {
-          if(p_context[0] == '#')
+          if(p_context->so_name[0] == '#')
           {
-              memset(p_context,0,256);
+              memset(p_context,0,sizeof(DEVCONTEXT));
               continue;
           }
-          if(access(p_context,R_OK|F_OK) != 0)
+          if(access(p_context->so_name,R_OK|F_OK) != 0)
           {
-              memset(p_context,0,256);
+              memset(p_context,0,sizeof(DEVCONTEXT));
               continue;
           }
           list_add(pphead,p_context);
@@ -84,5 +90,6 @@ int main(int argc,char *argv[])
 
 int load_device(PLIST pDevList)
 {
-   char *so_name = NULL;
+   DEVCONTEXT *p_devcontext = NULL; 
+
 }
