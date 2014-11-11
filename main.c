@@ -22,16 +22,21 @@
 #include <dlfcn.h>
 #include <string.h>
 #include <list.h>
+#include <pthread.h>
 #define DEVICECONFIG    "/etc/deviceList.conf"
+#define MSGTYPE     int
 typedef struct {
     char so_name[256];
+    void *pHdl;
+    pthread_t threadHdl;
     int (*device_open)();
     void *(*device_listen)();
-    MSG (*msg_transale)(void *context);
+    MSGTYPE (*msg_transale)(void *context);
     int (*device_close)();
 }DEVCONTEXT;
-int load_device(PLIST pDevList);
 
+int register_device_ex(DEVCONTEXT *pContext);
+static void *device_thread(void *pContext);
 static int load_config(const char *config,PLIST *pphead)
 {
     FILE *fp = NULL;
@@ -41,29 +46,31 @@ static int load_config(const char *config,PLIST *pphead)
     if(!fp)     return -1;
     while(1)
     {
-       if(!p_context) 
-       {
-           p_context = (DEVCONTEXT *)malloc(sizeof(DEVCONTEXT));
-           if(!p_context)   return -1;
-           memset(p_context,0,sizeof(DEVCONTEXT));
-       }
+       p_context = (DEVCONTEXT *)malloc(sizeof(DEVCONTEXT));
+       if(!p_context)   return -1;
+       memset(p_context,0,sizeof(DEVCONTEXT));
 
        if(fgets(p_context->so_name,256,fp))
        {
           if(p_context->so_name[0] == '#')
           {
-              memset(p_context,0,sizeof(DEVCONTEXT));
+              free(p_context);
               continue;
           }
-          if(access(p_context->so_name,R_OK|F_OK) != 0)
+          if(register_device_ex(p_context) < 0)
           {
-              memset(p_context,0,sizeof(DEVCONTEXT));
-              continue;
+              free(p_context);
+              p_context = NULL;
           }
-          list_add(pphead,p_context);
-          cnt ++;
+          else
+          {
+              list_add(pphead,p_context);
+              p_context = NULL;
+              cnt ++;
+          }
        }
     }
+    fclose(fp);
     return cnt;
     
 }
@@ -85,11 +92,33 @@ int main(int argc,char *argv[])
         perror("config file is invalid!\n");
         exit(-1);
     }
-   return load_device(device_list);
+
+   return 0;
 }
 
-int load_device(PLIST pDevList)
+int register_device_ex(DEVCONTEXT *pContext)
 {
-   DEVCONTEXT *p_devcontext = NULL; 
-
+    pContext->pHdl = dlopen(pContext->so_name,RTLD_NOW); 
+    if(pContext->pHdl)
+    {
+        pContext->device_open = dlsym(pContext->pHdl,"device_open");
+        pContext->device_listen = dlsym(pContext->pHdl,"device_listen");
+        pContext->msg_transale = dlsym(pContext->pHdl,"msg_transale");
+        pContext->device_close = dlsym(pContext->pHdl,"device_close");
+    }
+    else
+    {
+        return -1;
+    }
+    if(pContext->device_open)
+        pContext->device_open();
+    pthread_create(&pContext->threadHdl,NULL,device_thread,(void *)pContext);
+    return 0;
+}
+static void *device_thread(void *pContext)
+{
+    DEVCONTEXT *pDevContext = NULL;
+    pDevContext = (DEVCONTEXT *)pContext;
+    if(pDevContext->device_open)
+        pthread_attr_t thread_attr;
 }
