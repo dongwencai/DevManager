@@ -24,18 +24,39 @@
 #include <list.h>
 #include <pthread.h>
 #define DEVICECONFIG    "/etc/deviceList.conf"
-#define MSGTYPE     int
+#define MSG     int
 typedef struct {
     char so_name[256];
     void *pHdl;
     pthread_t threadHdl;
     int (*device_open)();
     void *(*device_listen)();
-    MSGTYPE (*msg_transale)(void *context);
+    int (*msg_transale)(void *context,MSG *Msg);
     int (*device_close)();
 }DEVCONTEXT;
 
+typedef enum{
+    DEV_SUC = 1,
+    DEV_FAIL,
+    DEV_NOT_EXIST,
+}DEV_STATUS;
+
+PLIST device_list = NULL;
+
+PLIST look_up_device(const char *name)
+{
+    PLIST plist = device_list;
+    DEVCONTEXT *pContext = NULL;
+    while(plist)
+    {
+        pContext = (DEVCONTEXT *)plist->date;
+        if(!strcmp(name,pContext->so_name))  break;
+        plist =plist->next;
+    }
+    return plist;
+}
 int register_device_ex(DEVCONTEXT *pContext);
+DEV_STATUS register_device(const char *name);
 static void *device_thread(void *pContext);
 static int load_config(const char *config,PLIST *pphead)
 {
@@ -77,7 +98,6 @@ static int load_config(const char *config,PLIST *pphead)
 int main(int argc,char *argv[])
 {
     char *p_config_name = DEVICECONFIG;
-    PLIST device_list = NULL;
     if(argc > 1)
     {
         p_config_name = argv[1];
@@ -96,6 +116,23 @@ int main(int argc,char *argv[])
    return 0;
 }
 
+DEV_STATUS register_device(const char *name)
+{
+    DEV_STATUS ret = DEV_SUC;
+    PLIST link = NULL;
+    DEVCONTEXT *pContext = NULL;
+    link = look_up_device(name);
+    if(!link)
+    {
+        strcpy(pContext->so_name,name);
+        if(register_device_ex(pContext) > 0)
+        {
+            list_add(&device_list,(void *)pContext);
+            return DEV_SUC;
+        }
+    }
+    return -DEV_FAIL;
+}
 int register_device_ex(DEVCONTEXT *pContext)
 {
     pContext->pHdl = dlopen(pContext->so_name,RTLD_NOW); 
@@ -108,17 +145,42 @@ int register_device_ex(DEVCONTEXT *pContext)
     }
     else
     {
-        return -1;
+        return -DEV_FAIL;
     }
-    if(pContext->device_open)
-        pContext->device_open();
     pthread_create(&pContext->threadHdl,NULL,device_thread,(void *)pContext);
-    return 0;
+    list_add(&device_list,pContext);
+    return DEV_SUC;
+}
+int unregister_device_ex(PLIST link)
+{
+    DEVCONTEXT *pContext = NULL;
+    if(!link)   return -DEV_NOT_EXIST;
+    pthread_cancel(pContext->threadHdl);
+    pthread_join(pContext->threadHdl,NULL);
+    if(pContext->device_close)
+        pContext->device_close();
+    list_del(&device_list,link);
 }
 static void *device_thread(void *pContext)
 {
     DEVCONTEXT *pDevContext = NULL;
+    int ret = 0;
+    void *p = NULL;
+    MSG msg;
     pDevContext = (DEVCONTEXT *)pContext;
     if(pDevContext->device_open)
-        pthread_attr_t thread_attr;
+    {
+        pDevContext->device_open();
+    }
+    while(1)
+    {
+        p = pDevContext->device_listen();
+        ret = pDevContext->msg_transale(p,&msg);
+        if(ret)
+        {
+            //将消息传递出去
+        }
+    }
+
 }
+

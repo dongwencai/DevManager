@@ -26,18 +26,18 @@ void list_add(PLIST *pphead, void *date)
     }
 }
 
-void list_del(PLIST head,PLIST node)
+void list_del(PLIST *pphead,PLIST node)
 {
-    if(head == node)
+    if(*pphead == node)
     {
-        release_node(head);
-        head = NULL;
+        release_node(*pphead);
+        *pphead = NULL;
     }
-    while(head)
+    while(*pphead)
     {
-        if(head->next == node)
+        if((*pphead)->next == node)
         {
-            head->next = node->next;
+            (*pphead)->next = node->next;
             release_node(node);
         }
     }
