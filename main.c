@@ -62,13 +62,14 @@ static int load_config(const char *config,PLIST *pphead)
 {
     FILE *fp = NULL;
     int cnt = 0;
+    PLIST link = NULL;
     DEVCONTEXT *p_context = NULL;
     fp = fopen(config,"r");
-    if(!fp)     return -1;
+    if(!fp)     return -DEV_FAIL;
     while(1)
     {
        p_context = (DEVCONTEXT *)malloc(sizeof(DEVCONTEXT));
-       if(!p_context)   return -1;
+       if(!p_context)   return -DEV_FAIL;
        memset(p_context,0,sizeof(DEVCONTEXT));
 
        if(fgets(p_context->so_name,256,fp))
@@ -85,8 +86,13 @@ static int load_config(const char *config,PLIST *pphead)
           }
           else
           {
-              list_add(pphead,p_context);
-              p_context = NULL;
+              link = (PLIST)malloc(sizeof(LIST));
+              if(link)
+              {
+                  link->date = p_context;
+                  list_add(pphead,link);
+                  p_context = NULL;
+              }
               cnt ++;
           }
        }
@@ -124,13 +130,18 @@ DEV_STATUS register_device(const char *name)
     link = look_up_device(name);
     if(!link)
     {
+        link = (PLIST)malloc(sizeof(LIST));
+        pContext = (DEVCONTEXT *)malloc(sizeof(DEVCONTEXT));
         strcpy(pContext->so_name,name);
-        if(register_device_ex(pContext) > 0)
+        if(link && pContext && register_device_ex(pContext) > 0)
         {
-            list_add(&device_list,(void *)pContext);
+            link->date = pContext;
+            list_add(&device_list,link);
             return DEV_SUC;
         }
     }
+    if(link)    free(link);
+    if(pContext) free(pContext);
     return -DEV_FAIL;
 }
 int register_device_ex(DEVCONTEXT *pContext)
@@ -148,7 +159,6 @@ int register_device_ex(DEVCONTEXT *pContext)
         return -DEV_FAIL;
     }
     pthread_create(&pContext->threadHdl,NULL,device_thread,(void *)pContext);
-    list_add(&device_list,pContext);
     return DEV_SUC;
 }
 int unregister_device_ex(PLIST link)

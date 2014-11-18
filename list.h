@@ -7,9 +7,9 @@ typedef struct list{
 }LIST,*PLIST;
 
 
-extern void list_add(PLIST *pphead, void *date);
+extern void list_add(PLIST *pphead, PLIST link);
 
-extern void list_del(PLIST *head,PLIST node);
+extern void list_del(PLIST *head,PLIST link);
 
 extern void release_node(PLIST node);
 

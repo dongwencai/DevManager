@@ -1,44 +1,37 @@
 #include "list.h"
 #include <stdio.h>
 #include <stdlib.h>
-void list_add(PLIST *pphead, void *date)
+void list_add(PLIST *pphead, PLIST link)
 {
-    struct list *newNode;
-    newNode = (struct list *)malloc(sizeof(struct list));
-    if(newNode)
+    if(link)
     {
-        newNode->date = date;
         if(*pphead)
         {
-            newNode->next = (*pphead);
-            *pphead = newNode;
+            link->next = (*pphead);
+            *pphead = link;
         }
         else
         {
-            *pphead = newNode;
-            newNode->next = NULL;
+            *pphead = link;
+            link->next = NULL;
         }
 
     }
-    else
-    {
-        printf("alloc mem failt\n");
-    }
 }
 
-void list_del(PLIST *pphead,PLIST node)
+void list_del(PLIST *pphead,PLIST link)
 {
-    if(*pphead == node)
+    if(*pphead == link)
     {
         release_node(*pphead);
         *pphead = NULL;
     }
     while(*pphead)
     {
-        if((*pphead)->next == node)
+        if((*pphead)->next == link)
         {
-            (*pphead)->next = node->next;
-            release_node(node);
+            (*pphead)->next = link->next;
+            release_node(link);
         }
     }
 }
