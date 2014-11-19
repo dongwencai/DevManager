@@ -18,6 +18,7 @@ typedef enum{
     LIST_SUC,
     LIST_FAIL,
 }LIST_STATUS;
+
 extern PLISTINFO create_list(int data_size,int (*compare)(void *,void *));
 
 extern LIST_STATUS list_add(PLISTINFO pListInfo, void *pData);
@@ -27,4 +28,6 @@ extern LIST_STATUS list_del(PLISTINFO pListInfo,PLIST plink);
 extern LIST_STATUS release_list(PLISTINFO pListInfo);
 
 extern LIST_STATUS empty_list(PLISTINFO pListInfo);
+
+extern PLIST lookup_node(PLISTINFO pListInfo,void *pkey);
 #endif

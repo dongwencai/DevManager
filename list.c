@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 static void node_del(PLIST *ppHead,PLIST pNode);
+
 PLISTINFO create_list(int nsize,int (*cbcompare)(void *,void *))
 {
     PLISTINFO pListInfo = NULL;
@@ -14,6 +15,7 @@ PLISTINFO create_list(int nsize,int (*cbcompare)(void *,void *))
     }
     return pListInfo;
 }
+
 LIST_STATUS list_add(PLISTINFO pListInfo, void *pData)
 {
     PLIST pNewNode = NULL;
@@ -99,6 +101,7 @@ static void *list_del_all(void *p)
        free(temp);
        *ppHead = (*ppHead)->next;
     }
+    return NULL;
 }
 
 LIST_STATUS empty_list(PLISTINFO pListInfo)
@@ -106,7 +109,6 @@ LIST_STATUS empty_list(PLISTINFO pListInfo)
     pthread_t thid;
     pthread_attr_t thAttr;
     PLIST pHead = NULL;
-    PLIST pnxt = NULL;
     if(!pListInfo)
         return LIST_SUC;
     pthread_attr_init(&thAttr);
@@ -114,8 +116,11 @@ LIST_STATUS empty_list(PLISTINFO pListInfo)
     pthread_mutex_lock(&pListInfo->lock);
     pHead = pListInfo->phead;
     pListInfo->phead = NULL;
+    pthread_mutex_unlock(&pListInfo->lock);
     pthread_create(&thid,&thAttr,list_del_all,&pHead);
+    return LIST_SUC;
 }
+
 LIST_STATUS release_list(PLISTINFO pListInfo)
 {
     if(!pListInfo)

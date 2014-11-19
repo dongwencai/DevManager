@@ -21,19 +21,22 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <string.h>
-#include <list.h>
+#include "list.h"
 #include <pthread.h>
 #define DEVICECONFIG    "/etc/deviceList.conf"
 #define MSG     int
+#define SONAMELEN 256
+
 typedef struct {
-    char so_name[256];
+    char so_name[SONAMELEN];
     void *pHdl;
     pthread_t threadHdl;
     int (*device_open)();
+    int (*device_ctl)(int cmd,void *p);
     void *(*device_listen)();
     int (*msg_transale)(void *context,MSG *Msg);
     int (*device_close)();
-}DEVCONTEXT;
+}DEVCONTEXT,*PDEVCONTEXT;
 
 typedef enum{
     DEV_SUC = 1,
@@ -41,58 +44,31 @@ typedef enum{
     DEV_NOT_EXIST,
 }DEV_STATUS;
 
-PLIST device_list = NULL;
+PLISTINFO device_list = NULL;
 
-PLIST look_up_device(const char *name)
-{
-    PLIST plist = device_list;
-    DEVCONTEXT *pContext = NULL;
-    while(plist)
-    {
-        pContext = (DEVCONTEXT *)plist->date;
-        if(!strcmp(name,pContext->so_name))  break;
-        plist =plist->next;
-    }
-    return plist;
-}
 int register_device_ex(DEVCONTEXT *pContext);
 DEV_STATUS register_device(const char *name);
 static void *device_thread(void *pContext);
-static int load_config(const char *config,PLIST *pphead)
+static int nameCompare(void *src,void *dst);
+static int load_config(const char *config,PLISTINFO pDevList)
 {
     FILE *fp = NULL;
     int cnt = 0;
     PLIST link = NULL;
-    DEVCONTEXT *p_context = NULL;
+    DEVCONTEXT context;
     fp = fopen(config,"r");
     if(!fp)     return -DEV_FAIL;
     while(1)
     {
-       p_context = (DEVCONTEXT *)malloc(sizeof(DEVCONTEXT));
-       if(!p_context)   return -DEV_FAIL;
-       memset(p_context,0,sizeof(DEVCONTEXT));
-
-       if(fgets(p_context->so_name,256,fp))
+       if(fgets(context.so_name,256,fp))
        {
-          if(p_context->so_name[0] == '#')
+          if(context.so_name[0] == '#')
           {
-              free(p_context);
               continue;
           }
-          if(register_device_ex(p_context) < 0)
+          if(register_device_ex(&context) > 0)
           {
-              free(p_context);
-              p_context = NULL;
-          }
-          else
-          {
-              link = (PLIST)malloc(sizeof(LIST));
-              if(link)
-              {
-                  link->date = p_context;
-                  list_add(pphead,link);
-                  p_context = NULL;
-              }
+              list_add(pDevList,&context);
               cnt ++;
           }
        }
@@ -113,35 +89,31 @@ int main(int argc,char *argv[])
         perror("config file not exist or Limited access!\n");
         exit(-1);
     }
-    if(load_config(p_config_name,&device_list) <= 0)
+    device_list = create_list(sizeof(DEVCONTEXT),nameCompare);
+    if(device_list && load_config(p_config_name,device_list) > 0)
     {
-        perror("config file is invalid!\n");
-        exit(-1);
+        while(1);
     }
 
-   return 0;
+    perror("config file is invalid!\n");
+    return 0;
 }
 
 DEV_STATUS register_device(const char *name)
 {
     DEV_STATUS ret = DEV_SUC;
     PLIST link = NULL;
-    DEVCONTEXT *pContext = NULL;
-    link = look_up_device(name);
+    DEVCONTEXT context;
+    link = lookup_node(device_list,(void *)name);
     if(!link)
     {
-        link = (PLIST)malloc(sizeof(LIST));
-        pContext = (DEVCONTEXT *)malloc(sizeof(DEVCONTEXT));
-        strcpy(pContext->so_name,name);
-        if(link && pContext && register_device_ex(pContext) > 0)
+        strncpy(context.so_name,name,SONAMELEN);
+        if(register_device_ex(&context) > 0)
         {
-            link->date = pContext;
-            list_add(&device_list,link);
+            list_add(device_list,&context);
             return DEV_SUC;
         }
     }
-    if(link)    free(link);
-    if(pContext) free(pContext);
     return -DEV_FAIL;
 }
 int register_device_ex(DEVCONTEXT *pContext)
@@ -163,17 +135,17 @@ int register_device_ex(DEVCONTEXT *pContext)
 }
 int unregister_device_ex(PLIST link)
 {
-    DEVCONTEXT *pContext = NULL;
+    PDEVCONTEXT pContext = NULL;
     if(!link)   return -DEV_NOT_EXIST;
     pthread_cancel(pContext->threadHdl);
     pthread_join(pContext->threadHdl,NULL);
     if(pContext->device_close)
         pContext->device_close();
-    list_del(&device_list,link);
+    list_del(device_list,link);
 }
 static void *device_thread(void *pContext)
 {
-    DEVCONTEXT *pDevContext = NULL;
+    PDEVCONTEXT pDevContext = NULL;
     int ret = 0;
     void *p = NULL;
     MSG msg;
@@ -194,3 +166,9 @@ static void *device_thread(void *pContext)
 
 }
 
+static int nameCompare(void *src,void *dst)
+{
+    PDEVCONTEXT pSrc = (PDEVCONTEXT)src;
+    PDEVCONTEXT pDst = (PDEVCONTEXT)dst;
+    return strncmp(pSrc->so_name,pDst->so_name,SONAMELEN);
+}
