@@ -1,6 +1,7 @@
 #include "list.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 static void node_del(PLIST *ppHead,PLIST pNode);
 
 PLISTINFO create_list(int nsize,int (*cbcompare)(void *,void *))

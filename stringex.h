@@ -16,3 +16,17 @@
  * =====================================================================================
  */
 
+char *strip_illegal_char(char *str)
+{
+    char *tmp = str;
+    while(*str)
+    {
+        if(*str < 32 || *str > 127)
+        {
+            *str = '\0';
+            break;
+        }
+        str ++;
+    }
+    return tmp;
+}
