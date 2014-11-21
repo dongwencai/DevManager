@@ -2,7 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-static void node_del(PLIST *ppHead,PLIST pNode);
+
+static PLIST node_del(PLIST pHead,PLIST pNode);
 
 PLISTINFO create_list(int nsize,int (*cbcompare)(void *,void *))
 {
@@ -63,33 +64,33 @@ PLIST lookup_node(PLISTINFO pListInfo,void *pkey)
 
 LIST_STATUS list_del(PLISTINFO pListInfo,PLIST pNode)
 {
-    PLIST pHead = NULL;
     if(!pListInfo)
     {
-        return LIST_FAIL;
+        return -LIST_FAIL;
     }
     pthread_mutex_lock(&pListInfo->lock);
-    pHead = pListInfo->phead;
-    node_del(&pHead,pNode);
+    pListInfo->phead;
+    pListInfo->phead = node_del(pListInfo->phead,pNode);
     pthread_mutex_unlock(&pListInfo->lock);
     return LIST_SUC;
 }
 
-static void node_del(PLIST *ppHead,PLIST pNode)
+static PLIST node_del(PLIST pHead,PLIST pNode)
 {
-    if(*ppHead == pNode)
+    if(pHead == pNode)
     {
-        free(ppHead);
-        *ppHead = NULL;
+        free(pHead);
+        pHead = NULL;
     }
-    while(*ppHead)
+    while(pHead)
     {
-        if((*ppHead)->next == pNode)
+        if((pHead)->next == pNode)
         {
-            (*ppHead)->next = pNode->next;
+            (pHead)->next = pNode->next;
             free(pNode);
         }
     }
+    return pHead;
 
 }
 
