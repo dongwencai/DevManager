@@ -69,7 +69,6 @@ LIST_STATUS list_del(PLISTINFO pListInfo,PLIST pNode)
         return -LIST_FAIL;
     }
     pthread_mutex_lock(&pListInfo->lock);
-    pListInfo->phead;
     pListInfo->phead = node_del(pListInfo->phead,pNode);
     pthread_mutex_unlock(&pListInfo->lock);
     return LIST_SUC;
@@ -96,12 +95,12 @@ static PLIST node_del(PLIST pHead,PLIST pNode)
 
 static void *list_del_all(void *p)
 {
-    PLIST *ppHead = p,temp = NULL;
-    while(*ppHead)
+    PLIST pHead = p,temp = NULL;
+    while(pHead)
     {
-       temp = *ppHead; 
+       temp = pHead; 
        free(temp);
-       *ppHead = (*ppHead)->next;
+       pHead = pHead->next;
     }
     return NULL;
 }
@@ -119,7 +118,7 @@ LIST_STATUS empty_list(PLISTINFO pListInfo)
     pHead = pListInfo->phead;
     pListInfo->phead = NULL;
     pthread_mutex_unlock(&pListInfo->lock);
-    pthread_create(&thid,&thAttr,list_del_all,&pHead);
+    pthread_create(&thid,&thAttr,list_del_all,pHead);
     return LIST_SUC;
 }
 
