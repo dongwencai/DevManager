@@ -21,44 +21,35 @@ PLISTINFO create_list(int nsize,int (*cbcompare)(void *,void *))
 LIST_STATUS list_add(PLISTINFO pListInfo, void *pData)
 {
     PLIST pNewNode = NULL;
-    if(pListInfo)
+    pNewNode = (PLIST)malloc(sizeof(LIST) + pListInfo->data_size);
+    if(pListInfo && pNewNode)
     {
-        pNewNode = (PLIST)malloc(sizeof(LIST) + pListInfo->data_size);
-        if(pNewNode)
-        {
-            memcpy(pNewNode->data,pData,pListInfo->data_size);
-            pthread_mutex_lock(&pListInfo->lock);
-            pNewNode->next = pListInfo->phead;
-            pListInfo->phead = pNewNode;
-            pthread_mutex_unlock(&pListInfo->lock);
-        }
+        memcpy(pNewNode->data,pData,pListInfo->data_size);
+        pthread_mutex_lock(&pListInfo->lock);
+        pNewNode->next = pListInfo->phead;
+        pListInfo->phead = pNewNode;
+        pthread_mutex_unlock(&pListInfo->lock);
     }
     else
-        return LIST_FAIL;
+        return -LIST_FAIL;
     return LIST_SUC;
 }
 //compare 查找对比函数 相等返回0
 PLIST lookup_node(PLISTINFO pListInfo,void *pkey)
 {
     PLIST pNode = NULL;
-    if(!pListInfo)
+    if(pListInfo && pListInfo->compare)
     {
-        return NULL;
-    }
-    pthread_mutex_lock(&pListInfo->lock);
-    if(pListInfo->compare)
-    {
+        pthread_mutex_lock(&pListInfo->lock);
+        pNode = pListInfo->phead;
+        while(pNode)
+        {
+            if(!pListInfo->compare(pkey,pNode->data))
+                break;
+            pNode = pNode->next;
+        }
         pthread_mutex_unlock(&pListInfo->lock);
-        return NULL;
     }
-    pNode = pListInfo->phead;
-    while(pNode)
-    {
-        if(!pListInfo->compare(pkey,pNode->data))
-            break;
-        pNode = pNode->next;
-    }
-    pthread_mutex_unlock(&pListInfo->lock);
     return pNode;
 }
 
@@ -76,21 +67,28 @@ LIST_STATUS list_del(PLISTINFO pListInfo,PLIST pNode)
 
 static PLIST node_del(PLIST pHead,PLIST pNode)
 {
+    PLIST temp = NULL;
     if(pHead == pNode)
     {
-        free(pHead);
-        pHead = NULL;
+        temp = pHead;
+        pHead = pHead->next;
+        free(temp);
     }
-    while(pHead)
+    else
     {
-        if((pHead)->next == pNode)
+        temp = pHead;
+        while(temp)
         {
-            (pHead)->next = pNode->next;
-            free(pNode);
+            if((temp)->next == pNode)
+            {
+                temp->next = pNode->next;
+                free(temp);
+                break;
+            }
+            temp = temp->next;
         }
     }
     return pHead;
-
 }
 
 static void *list_del_all(void *p)
@@ -99,10 +97,10 @@ static void *list_del_all(void *p)
     while(pHead)
     {
        temp = pHead; 
-       free(temp);
        pHead = pHead->next;
+       free(temp);
     }
-    return NULL;
+    return pHead;
 }
 
 LIST_STATUS empty_list(PLISTINFO pListInfo)
@@ -131,3 +129,20 @@ LIST_STATUS release_list(PLISTINFO pListInfo)
     free(pListInfo);
     return LIST_SUC;
 }
+
+#ifdef DEBUG
+LIST_STATUS print_list(PLISTINFO pListInfo)
+{
+    PLIST pHead = NULL;
+    char *name = NULL;
+    pthread_mutex_lock(&pListInfo->lock);
+    pHead = pListInfo->phead;
+    while(pHead)
+    {
+        name = pHead->data;
+        printf("%s\n",name);
+        pHead = pHead->next;
+    }
+    pthread_mutex_unlock(&pListInfo->lock);
+}
+#endif
