@@ -21,12 +21,16 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <string.h>
-#include "list.h"
 #include <pthread.h>
-#define DEVICECONFIG    "/etc/deviceList.conf"
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <errno.h>
+#include "config.h"
+#include "list.h"
 #define MSG     int
 #define SONAMELEN 256
 
+static int g_msgid;
 typedef struct {
     char so_name[SONAMELEN];
     void *pHdl;
@@ -80,6 +84,7 @@ static int load_config(const char *config,PLISTINFO pDevList)
 int main(int argc,char *argv[])
 {
     char *p_config_name = DEVICECONFIG;
+    key_t key;
     if(argc > 1)
     {
         p_config_name = argv[1];
@@ -90,13 +95,25 @@ int main(int argc,char *argv[])
         exit(-1);
     }
     device_list = create_list(sizeof(DEVCONTEXT),nameCompare);
-    if(device_list && load_config(p_config_name,device_list) > 0)
+    if(device_list )
     {
-        while(1);
+        DEVMSG devMsg;
+        load_config(p_config_name,device_list);
+        key = ftok(DEVICEMANAGER,IPCKEY);
+        g_msgid = msgget(key,0666 | IPC_CREAT);
+        if(g_msgid < 0)
+        {
+            fprintf(stderr,"MSG open :%s\n",strerror(errno));
+            exit(errno);
+        }
+        while(1)
+        {
+            msgrcv(g_msgid,&devMsg,sizeof(devMsg) - sizeof(long),SYSMSGTYPE,0);
+        }
     }
 
     perror("config file is invalid!\n");
-    return 0;
+    return -1;
 }
 
 DEV_STATUS register_device(const char *name)

@@ -24,17 +24,14 @@ LIST_STATUS list_add(PLISTINFO pListInfo, void *pData)
     if(pListInfo)
     {
         pNewNode = (PLIST)malloc(sizeof(LIST) + pListInfo->data_size);
-        if(!pNewNode) goto err;
-
+        if(!pNewNode) return -LIST_FAIL;
         memcpy(pNewNode->data,pData,pListInfo->data_size);
         pthread_mutex_lock(&pListInfo->lock);
         pNewNode->next = pListInfo->phead;
         pListInfo->phead = pNewNode;
         pthread_mutex_unlock(&pListInfo->lock);
-        return LIST_SUC;
     }
-err:
-    return -LIST_FAIL;
+    return LIST_SUC;
 }
 //compare 查找对比函数 相等返回0
 PLIST lookup_node(PLISTINFO pListInfo,void *pkey)
