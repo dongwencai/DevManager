@@ -22,7 +22,6 @@
 #include <dlfcn.h>
 #include <string.h>
 #include <pthread.h>
-#include <bits/ipc.h>
 #include <sys/msg.h>
 #include "list.h"
 #include "stringex.h"
@@ -31,14 +30,27 @@
 #include "config.h"
 
 PLISTINFO   device_list = NULL;
-int         g_msgid = -1;
+static int g_msgid = -1;
+static int g_retmsgid = -1;         
 static int load_config(const char *config,PLISTINFO pDevList);
 static int register_device_ex(DEVCONTEXT *pContext);
 static void *device_thread(void *pContext);
 static int nameCompare(void *src,void *dst);
 static int unregister_device_ex(PLIST link);
 static int  msg_loop();
-static int  devmsg_loop();
+static void *dev_msg_loop(void *p);
+
+int pthread_create_detached(void *(*thread_func)(void *),void *p)
+{
+    pthread_t thread_id;
+    pthread_attr_t attr;
+    int ret ;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
+    ret = pthread_create(&thread_id,&attr,thread_func,p);
+    pthread_attr_destroy(&attr);
+    return ret;
+}
 void print_all_divice()
 {
     PLIST pHead = NULL;
@@ -103,6 +115,9 @@ int main(int argc,char *argv[])
     {
         key_t key = ftok(DEVICEMANAGER,IPCKEY);
         g_msgid = msgget(key,0666 | IPC_CREAT);
+        key = ftok(DEVICERETMSG,IPCKEY);
+        g_retmsgid = msgget(key,0666 | IPC_CREAT);
+        pthread_create_detached(dev_msg_loop,NULL);
         while(g_msgid >= 0)
         {
             msg_loop();
@@ -237,4 +252,28 @@ static int  msg_loop()
         }
     }
     return DEV_SUC;
+}
+static void *dev_msg_loop(void *p)
+{
+    int ret;
+    PLIST   pLink = NULL;
+    PDEVCONTEXT pContext = NULL;
+    SOMSG msg;
+    while(1)
+    {
+        ret = msgrcv(g_msgid,&msg,MSGMAXSIZE,DEVMSGTYPE,IPC_NOWAIT);
+        if(ret == 0)
+        {
+            pLink = lookup_node(device_list,msg.somsg.so_name);           
+            if(pLink)
+            {
+                pContext = (PDEVCONTEXT)pLink->data;
+                pContext->device_ctl(msg.somsg.cmd,msg.somsg.param);
+                msg.type = DEVMSGTYPE;
+                if(g_retmsgid >= 0)
+                    msgsnd(g_retmsgid,&msg,MSGMAXSIZE,0);
+            }
+
+        }
+    }
 }
