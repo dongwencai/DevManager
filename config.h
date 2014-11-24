@@ -7,13 +7,15 @@
 #define DEVICECONFIG    "/etc/deviceList.conf"
 #define SYSMSGTYPE 1
 #define DEVMSGTYPE 2
+#define MSGMAXSIZE 512
+
 typedef struct{
     long type;
     struct{
         int cmd;
-        char context[0];
-    }MSG;
-}DEVMSG,*PDEVMSG;
+        char param[0];
+    }devmsg;
+}__attribute__((packed, aligned(1))) DEVMSG,*PDEVMSG;
 
 #endif
 

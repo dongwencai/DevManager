@@ -21,20 +21,24 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <string.h>
+#include <pthread.h>
+#include <bits/ipc.h>
+#include <sys/msg.h>
 #include "list.h"
 #include "stringex.h"
 #include "deviceManager.h"
-#include <pthread.h>
+#include "devmsg.h"
+#include "config.h"
 
-#define DEVICECONFIG    "./deviceList.conf"
-
-PLISTINFO device_list = NULL;
-
+PLISTINFO   device_list = NULL;
+int         g_msgid = -1;
 static int load_config(const char *config,PLISTINFO pDevList);
 static int register_device_ex(DEVCONTEXT *pContext);
 static void *device_thread(void *pContext);
 static int nameCompare(void *src,void *dst);
 static int unregister_device_ex(PLIST link);
+static int  msg_loop();
+static int  devmsg_loop();
 void print_all_divice()
 {
     PLIST pHead = NULL;
@@ -97,7 +101,12 @@ int main(int argc,char *argv[])
     device_list = create_list(sizeof(DEVCONTEXT),nameCompare);
     if(device_list && load_config(p_config_name,device_list) > 0)
     {
-        while(1);
+        key_t key = ftok(DEVICEMANAGER,IPCKEY);
+        g_msgid = msgget(key,0666 | IPC_CREAT);
+        while(g_msgid >= 0)
+        {
+            msg_loop();
+        }
     }
 
     perror("config file is invalid!\n");
@@ -154,7 +163,7 @@ DEV_STATUS unregister_device(const char *name)
 static int unregister_device_ex(PLIST link)
 {
     PDEVCONTEXT pContext = NULL;
-    if(!link)   return -DEV_NOT_EXIST;
+    if(!link)   return DEV_SUC;
     pthread_cancel(pContext->threadHdl);
     pthread_join(pContext->threadHdl,NULL);
     if(pContext->device_close)
@@ -206,4 +215,26 @@ int device_contrl(char *name,int cmd,void *p)
            ret = pContext->device_ctl(cmd,p);
     }
     return ret;
+}
+static int  msg_loop()
+{
+    DEVMSG msg;
+    int ret;
+    ret = msgrcv(g_msgid,&msg,MSGMAXSIZE,SYSMSGTYPE,IPC_NOWAIT);
+    if(ret == 0)
+    {
+        int cmd = msg.devmsg.cmd;  
+        switch(cmd)
+        {
+            case REG_DEV:
+                register_device((char *)msg.devmsg.param);
+                break;
+            case UNREG_DEV:
+                unregister_device((char *)msg.devmsg.param);
+                break;
+            default:
+                break;
+        }
+    }
+    return DEV_SUC;
 }
