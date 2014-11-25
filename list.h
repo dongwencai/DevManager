@@ -21,7 +21,7 @@ typedef enum{
 
 extern PLISTINFO create_list(int data_size,int (*compare)(void *,void *));
 
-extern LIST_STATUS list_add(PLISTINFO pListInfo, void *pData);
+extern PLIST list_add(PLISTINFO pListInfo, void *pData);
 
 extern LIST_STATUS list_del(PLISTINFO pListInfo,PLIST plink);
 

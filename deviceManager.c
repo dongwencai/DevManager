@@ -30,7 +30,7 @@
 #include "config.h"
 
 PLISTINFO   device_list = NULL;
-static int g_msgid = -1;
+static int g_msgid;
 static int g_retmsgid = -1;         
 static int load_config(const char *config,PLISTINFO pDevList);
 static int register_device_ex(DEVCONTEXT *pContext);
@@ -88,10 +88,13 @@ static int load_config(const char *config,PLISTINFO pDevList)
           }
           if(register_device_ex(&context) > 0)
           {
-              list_add(pDevList,&context);
+              link = list_add(pDevList,&context);
+              pthread_create_detached(device_thread,link->data);
               cnt ++;
           }
        }
+       else
+          break; 
     }
     fclose(fp);
     return cnt;
@@ -101,6 +104,7 @@ static int load_config(const char *config,PLISTINFO pDevList)
 int main(int argc,char *argv[])
 {
     char *p_config_name = DEVICECONFIG;
+    key_t key ;
     if(argc > 1)
     {
         p_config_name = argv[1];
@@ -113,7 +117,8 @@ int main(int argc,char *argv[])
     device_list = create_list(sizeof(DEVCONTEXT),nameCompare);
     if(device_list && load_config(p_config_name,device_list) > 0)
     {
-        key_t key = ftok(DEVICEMANAGER,IPCKEY);
+    
+        key  = ftok(DEVICEMANAGER,IPCKEY);
         g_msgid = msgget(key,0666 | IPC_CREAT);
         key = ftok(DEVICERETMSG,IPCKEY);
         g_retmsgid = msgget(key,0666 | IPC_CREAT);
@@ -123,7 +128,6 @@ int main(int argc,char *argv[])
             msg_loop();
         }
     }
-
     perror("config file is invalid!\n");
     return 0;
 }
@@ -138,14 +142,18 @@ DEV_STATUS register_device(const char *name)
         strncpy(context.so_name,name,SONAMELEN);
         if(register_device_ex(&context) > 0)
         {
-            list_add(device_list,&context);
-            return DEV_SUC;
+            link = list_add(device_list,&context);
+            if(link)
+            {
+                pthread_create_detached(device_thread,link->data);
+                return DEV_SUC;
+            }
         }
     }
     return -DEV_FAIL;
 }
 
-static int register_device_ex(DEVCONTEXT *pContext)
+static int register_device_ex(PDEVCONTEXT pContext)
 {
     pContext->pHdl = dlopen(pContext->so_name,RTLD_NOW); 
     if(pContext->pHdl)
@@ -160,7 +168,6 @@ static int register_device_ex(DEVCONTEXT *pContext)
     {
         return -DEV_FAIL;
     }
-    pthread_create(&pContext->threadHdl,NULL,device_thread,(void *)pContext);
     return DEV_SUC;
 }
 
@@ -205,7 +212,6 @@ static void *device_thread(void *pContext)
         if(ret)
         {
             //将消息传递出去
-            printf("msg : %d\n",msg);
         }
     }
     return NULL;
@@ -235,20 +241,23 @@ static int  msg_loop()
 {
     DEVMSG msg;
     int ret;
-    ret = msgrcv(g_msgid,&msg,MSGMAXSIZE,SYSMSGTYPE,IPC_NOWAIT);
-    if(ret == 0)
+    while(1)
     {
-        int cmd = msg.devmsg.cmd;  
-        switch(cmd)
+        ret = msgrcv(g_msgid,&msg,MSGMAXSIZE,SYSMSGTYPE,0);
+        if(ret > 0)
         {
-            case REG_DEV:
-                register_device((char *)msg.devmsg.param);
-                break;
-            case UNREG_DEV:
-                unregister_device((char *)msg.devmsg.param);
-                break;
-            default:
-                break;
+            int cmd = msg.devmsg.cmd;  
+            switch(cmd)
+            {
+                case REG_DEV:
+                    register_device((char *)msg.devmsg.param);
+                    break;
+                case UNREG_DEV:
+                    unregister_device((char *)msg.devmsg.param);
+                    break;
+                default:
+                    break;
+            }
         }
     }
     return DEV_SUC;

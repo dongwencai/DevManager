@@ -18,20 +18,20 @@ PLISTINFO create_list(int nsize,int (*cbcompare)(void *,void *))
     return pListInfo;
 }
 
-LIST_STATUS list_add(PLISTINFO pListInfo, void *pData)
+PLIST list_add(PLISTINFO pListInfo, void *pData)
 {
     PLIST pNewNode = NULL;
     if(pListInfo)
     {
         pNewNode = (PLIST)malloc(sizeof(LIST) + pListInfo->data_size);
-        if(!pNewNode) return -LIST_FAIL;
+        if(!pNewNode) return NULL;
         memcpy(pNewNode->data,pData,pListInfo->data_size);
         pthread_mutex_lock(&pListInfo->lock);
         pNewNode->next = pListInfo->phead;
         pListInfo->phead = pNewNode;
         pthread_mutex_unlock(&pListInfo->lock);
     }
-    return LIST_SUC;
+    return pNewNode;
 }
 //compare 查找对比函数 相等返回0
 PLIST lookup_node(PLISTINFO pListInfo,void *pkey)

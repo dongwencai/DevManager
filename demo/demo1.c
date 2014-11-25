@@ -1,7 +1,7 @@
-
+#include "devmsg.h"
 //#include "../deviceManager"
 
 int main()
 {
-    print_all_divice();
+    register_dev("./device/testDev2.so");
 }

@@ -14,29 +14,30 @@ int device_close();
 
 int device_open()
 {
-    printf("%s\t%x\n",__func__,(unsigned int)device_open);
+    printf("testDev2 open\n");
     return 0;
 }
 
 void *device_listen()
 {
-    static int rd ;
-    rd = rand();
+    int rd;
+    static char *str = "abcdefg";
+    rd = rand()%7;
     sleep(1);
-    printf("%s\trd:%d\n",__func__,rd);
-    return &rd;
+    printf("%c\n",str[rd]);
+    return &str[rd];
 }
 
 int msg_transale(void *context,MSG *Msg)
 {
-    int randsum = *(int *)context;
-    *Msg = randsum + 1;
+    char randsum = *(char *)context;
+    *Msg = randsum;
     return 1;
 }
 
 int device_close()
 {
-    printf("%s\t%x\n",__func__,(unsigned int)device_close);
+    printf("testDev2 close\n");
     return 1;
 }
 

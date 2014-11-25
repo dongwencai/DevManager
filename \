@@ -1,0 +1,8 @@
+#include "config.h"
+#include <sys/ipc.h>
+
+int register_dev(char *so_name)
+{
+    key_t key;
+    key = ftok(DEVICEMANAGER,IPCKEY);
+}
