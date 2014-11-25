@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #define MSG     int
 
@@ -21,6 +22,7 @@ void *device_listen()
 {
     static int rd ;
     rd = rand();
+    sleep(1);
     printf("%s\trd:%d\n",__func__,rd);
     return &rd;
 }

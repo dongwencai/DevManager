@@ -5,7 +5,7 @@
 #define IPCKEY 0x1
 #define DEVICEMANAGER "/ipc/msg/DevManager"     
 #define DEVICERETMSG  "/ipc/msg/DeviceRetMsg"
-#define DEVICECONFIG    "/etc/deviceList.conf"
+#define DEVICECONFIG    "./deviceList.conf"
 #define SYSMSGTYPE 1
 #define DEVMSGTYPE 2
 #define MSGMAXSIZE 512
