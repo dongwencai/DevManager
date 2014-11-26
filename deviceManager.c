@@ -37,6 +37,7 @@ static int register_device_ex(DEVCONTEXT *pContext);
 static void *device_thread(void *pContext);
 static int nameCompare(void *src,void *dst);
 static int unregister_device_ex(PLIST link);
+static int  msgid_init();
 static int  msg_loop();
 static void *dev_msg_loop(void *p);
 
@@ -89,8 +90,11 @@ static int load_config(const char *config,PLISTINFO pDevList)
           if(register_device_ex(&context) > 0)
           {
               link = list_add(pDevList,&context);
-              pthread_create_detached(device_thread,link->data);
-              cnt ++;
+              if(link)
+              {
+                  pthread_create_detached(device_thread,link->data);
+                  cnt ++;
+              }
           }
        }
        else
@@ -101,10 +105,19 @@ static int load_config(const char *config,PLISTINFO pDevList)
     
 }
 
+static int  msgid_init()
+{
+    key_t key ;
+    key  = ftok(DEVICEMANAGER,IPCKEY);
+    g_msgid = msgget(key,0666 | IPC_CREAT);
+    key = ftok(DEVICERETMSG,IPCKEY);
+    g_retmsgid = msgget(key,0666 | IPC_CREAT);
+    return (g_msgid | g_retmsgid);
+}
+
 int main(int argc,char *argv[])
 {
     char *p_config_name = DEVICECONFIG;
-    key_t key ;
     if(argc > 1)
     {
         p_config_name = argv[1];
@@ -115,13 +128,8 @@ int main(int argc,char *argv[])
         exit(-1);
     }
     device_list = create_list(sizeof(DEVCONTEXT),nameCompare);
-    if(device_list && load_config(p_config_name,device_list) > 0)
+    if(device_list && load_config(p_config_name,device_list) > 0 &&   msgid_init() > 0)
     {
-    
-        key  = ftok(DEVICEMANAGER,IPCKEY);
-        g_msgid = msgget(key,0666 | IPC_CREAT);
-        key = ftok(DEVICERETMSG,IPCKEY);
-        g_retmsgid = msgget(key,0666 | IPC_CREAT);
         pthread_create_detached(dev_msg_loop,NULL);
         while(g_msgid >= 0)
         {
@@ -136,6 +144,7 @@ DEV_STATUS register_device(const char *name)
 {
     PLIST link = NULL;
     DEVCONTEXT context;
+    printf("%s\t%d\t%s\n",__func__,__LINE__,name);
     link = lookup_node(device_list,(void *)name);
     if(!link)
     {
@@ -239,25 +248,33 @@ int device_contrl(char *name,int cmd,void *p)
 }
 static int  msg_loop()
 {
-    DEVMSG msg;
+    PDEVMSG pMsg;
     int ret;
-    while(1)
+    pMsg = (PDEVMSG)malloc(sizeof(DEVMSG)+512);
+    while(pMsg)
     {
-        ret = msgrcv(g_msgid,&msg,MSGMAXSIZE,SYSMSGTYPE,0);
+        ret = msgrcv(g_msgid,pMsg,MSGMAXSIZE,SYSMSGTYPE,0);
         if(ret > 0)
         {
-            int cmd = msg.devmsg.cmd;  
+            int cmd = pMsg->devmsg.cmd;  
+
             switch(cmd)
             {
                 case REG_DEV:
-                    register_device((char *)msg.devmsg.param);
+                    ret = register_device((char *)pMsg->devmsg.param);
                     break;
                 case UNREG_DEV:
-                    unregister_device((char *)msg.devmsg.param);
+                    ret = unregister_device((char *)pMsg->devmsg.param);
                     break;
                 default:
                     break;
             }
+        }
+        if(pMsg->devmsg.ret)
+        {
+            pMsg->devmsg.ret = ret;
+            pMsg->type = pMsg->timing;
+            msgsnd(g_retmsgid,pMsg,MSGMAXSIZE,0);
         }
     }
     return DEV_SUC;
@@ -267,22 +284,27 @@ static void *dev_msg_loop(void *p)
     int ret;
     PLIST   pLink = NULL;
     PDEVCONTEXT pContext = NULL;
-    SOMSG msg;
-    while(1)
+    PSOMSG pMsg;
+    pMsg = (PSOMSG)malloc(sizeof(SOMSG) + 256);
+    while(pMsg)
     {
-        ret = msgrcv(g_msgid,&msg,MSGMAXSIZE,DEVMSGTYPE,IPC_NOWAIT);
-        if(ret == 0)
+        ret = msgrcv(g_msgid,pMsg,MSGMAXSIZE,DEVMSGTYPE,IPC_NOWAIT);
+        if(ret > 0)
         {
-            pLink = lookup_node(device_list,msg.somsg.so_name);           
+            pLink = lookup_node(device_list,pMsg->somsg.so_name);           
             if(pLink)
             {
                 pContext = (PDEVCONTEXT)pLink->data;
-                pContext->device_ctl(msg.somsg.cmd,msg.somsg.param);
-                msg.type = DEVMSGTYPE;
-                if(g_retmsgid >= 0)
-                    msgsnd(g_retmsgid,&msg,MSGMAXSIZE,0);
+                ret = pContext->device_ctl(pMsg->somsg.cmd,pMsg->somsg.param);
+                if(pMsg->somsg.ret)
+                {
+                    pMsg->somsg.ret = ret;
+                    pMsg->type = pMsg->timing;
+                    msgsnd(g_retmsgid,pMsg,MSGMAXSIZE,0);
+                }
             }
 
         }
     }
+    return NULL;
 }

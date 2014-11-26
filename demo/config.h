@@ -13,16 +13,20 @@
 
 typedef struct{
     long type;
+    long timing;                        //当前时间s和us组合值，为了当前唯一
     struct{
         int cmd;
+        int ret;
         char param[0];
     }devmsg;
 }__attribute__((packed, aligned(1))) DEVMSG,*PDEVMSG;
 
 typedef struct{
     long type;
+    long timing;
     struct{
         char so_name[256];
+        int ret;
         int cmd;
         char param[0];
     }somsg;
