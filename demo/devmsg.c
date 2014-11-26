@@ -67,7 +67,7 @@ int unregister_dev(char *so_name)
 
 int devctl(char *so_name,int cmd,void *param)
 {
-    PSOMSG pMsg;
+    PSOMSG pMsg = (PSOMSG )param;
     long ts;
     struct timeval tv;
     if(g_devMsgid < 0 || g_retMsgid < 0)
@@ -75,7 +75,6 @@ int devctl(char *so_name,int cmd,void *param)
         if(msgid_init() < 0)
             return -1;
     }
-    pMsg =(PSOMSG) malloc(sizeof(PSOMSG ) + 260);
     gettimeofday(&tv,NULL);
     ts = TIMESTAMP(tv.tv_sec,tv.tv_usec);
     pMsg->timing = ts;
