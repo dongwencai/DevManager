@@ -30,7 +30,7 @@ typedef struct{
         int cmd;
         char param[0];
     }somsg;
-}__attribute__((packed, aligned(1))) SOMSG,*PSOMAG;
+}__attribute__((packed, aligned(1))) SOMSG,*PSOMSG;
 
 #endif
 

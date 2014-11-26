@@ -6,4 +6,7 @@
 
 int register_dev(char *so_name);
 
+int unregister_dev(char *so_name);
+
+int devctl(char *so_name,int cmd,void *param);
 #endif

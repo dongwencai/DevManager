@@ -37,9 +37,10 @@ static int register_device_ex(DEVCONTEXT *pContext);
 static void *device_thread(void *pContext);
 static int nameCompare(void *src,void *dst);
 static int unregister_device_ex(PLIST link);
-static int  msgid_init();
+static int  msg_init();
 static int  msg_loop();
 static void *dev_msg_loop(void *p);
+static int msg_release();
 
 int pthread_create_detached(void *(*thread_func)(void *),void *p)
 {
@@ -92,7 +93,8 @@ static int load_config(const char *config,PLISTINFO pDevList)
               link = list_add(pDevList,&context);
               if(link)
               {
-                  pthread_create_detached(device_thread,link->data);
+                  PDEVCONTEXT pContext = (PDEVCONTEXT) link->data;
+                  pthread_create(&pContext->threadHdl,NULL,device_thread,(void *)pContext);
                   cnt ++;
               }
           }
@@ -105,7 +107,17 @@ static int load_config(const char *config,PLISTINFO pDevList)
     
 }
 
-static int  msgid_init()
+static int msg_release()
+{
+    int ret;
+    if(g_msgid >=0)
+        ret = msgctl(g_msgid,IPC_RMID,0);
+    if(g_retmsgid >=0)
+        ret |= msgctl(g_retmsgid,IPC_RMID,0);
+    return ret;
+}
+
+static int  msg_init()
 {
     key_t key ;
     key  = ftok(DEVICEMANAGER,IPCKEY);
@@ -128,14 +140,12 @@ int main(int argc,char *argv[])
         exit(-1);
     }
     device_list = create_list(sizeof(DEVCONTEXT),nameCompare);
-    if(device_list && load_config(p_config_name,device_list) > 0 &&   msgid_init() > 0)
+    if(device_list && load_config(p_config_name,device_list) > 0 && msg_init() > 0)
     {
         pthread_create_detached(dev_msg_loop,NULL);
-        while(g_msgid >= 0)
-        {
-            msg_loop();
-        }
+        msg_loop();
     }
+    msg_release();
     perror("config file is invalid!\n");
     return 0;
 }
@@ -144,6 +154,7 @@ DEV_STATUS register_device(const char *name)
 {
     PLIST link = NULL;
     DEVCONTEXT context;
+    PDEVCONTEXT pContext;
     printf("%s\t%d\t%s\n",__func__,__LINE__,name);
     link = lookup_node(device_list,(void *)name);
     if(!link)
@@ -154,7 +165,8 @@ DEV_STATUS register_device(const char *name)
             link = list_add(device_list,&context);
             if(link)
             {
-                pthread_create_detached(device_thread,link->data);
+                pContext = (PDEVCONTEXT)link->data;
+                pthread_create(&pContext->threadHdl,NULL,device_thread,(void *)pContext);
                 return DEV_SUC;
             }
         }
@@ -183,22 +195,24 @@ static int register_device_ex(PDEVCONTEXT pContext)
 DEV_STATUS unregister_device(const char *name)
 {
     PLIST plink = NULL;
+    int ret = -1;
     plink = lookup_node(device_list,(void *)name);
     if(plink)
     {
-        unregister_device_ex(plink);
+        ret = unregister_device_ex(plink);
     }
-    return DEV_SUC;
+    return ret;
 }
 
 static int unregister_device_ex(PLIST link)
 {
     PDEVCONTEXT pContext = NULL;
-    if(!link)   return DEV_SUC;
-    pthread_cancel(pContext->threadHdl);
-    pthread_join(pContext->threadHdl,NULL);
+    if(!link)   return -DEV_FAIL;
+    pContext = (PDEVCONTEXT)link->data;
     if(pContext->device_close)
         pContext->device_close();
+    pthread_cancel(pContext->threadHdl);
+    pthread_join(pContext->threadHdl,NULL);
     list_del(device_list,link);
     return DEV_SUC;
 }
@@ -210,6 +224,7 @@ static void *device_thread(void *pContext)
     void *p = NULL;
     MSG msg;
     pDevContext = (DEVCONTEXT *)pContext;
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS,NULL);
     if(pDevContext->device_open)
     {
         pDevContext->device_open();
