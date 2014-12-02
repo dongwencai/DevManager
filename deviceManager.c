@@ -181,7 +181,7 @@ static int register_device_ex(PDEVCONTEXT pContext)
     if(pContext->pHdl)
     {
         pContext->device_open = dlsym(pContext->pHdl,"device_open");
-        pContext->device_listen = dlsym(pContext->pHdl,"device_listen");
+        pContext->device_getmsg = dlsym(pContext->pHdl,"device_getmsg");
         pContext->msg_transale = dlsym(pContext->pHdl,"msg_transale");
         pContext->device_close = dlsym(pContext->pHdl,"device_close");
         pContext->device_ctl = dlsym(pContext->pHdl,"device_ctl");
@@ -229,7 +229,7 @@ static void *device_thread(void *pContext)
     }
     while(ret >= 0)
     {
-        p = pDevContext->device_listen();
+        p = pDevContext->device_getmsg();
         ret = pDevContext->msg_transale(p,&msg);
         if(ret)
         {

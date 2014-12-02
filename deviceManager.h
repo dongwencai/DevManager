@@ -10,7 +10,7 @@ typedef struct {
     pthread_t threadHdl;
     int (*device_open)();
     int (*device_ctl)(int cmd,void *p);
-    void *(*device_listen)();
+    void *(*device_getmsg)();
     int (*msg_transale)(void *context,MSG *Msg);
     int (*device_close)();
 }DEVCONTEXT,*PDEVCONTEXT;

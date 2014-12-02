@@ -4,7 +4,7 @@
 
 int main()
 {
-    register_dev("./device/testDev2.so");
+    register_dev("./device/mouse.so");
     getchar();
     unregister_dev("./device/testDev1.so");
 }
