@@ -163,7 +163,10 @@ DEV_STATUS register_device(const char *name)
         strncpy(context.so_name,name,SONAMELEN);
         if(register_device_ex(&context) > 0)
         {
-            link = list_add(device_list,&context);
+            if(context.device_open && context.device_open() >= 0)
+            {
+                link = list_add(device_list,&context);
+            }
             if(link)
             {
                 pContext = (PDEVCONTEXT)link->data;
@@ -223,18 +226,11 @@ static void *device_thread(void *pContext)
     MSG msg;
     pDevContext = (DEVCONTEXT *)pContext;
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS,NULL);
-    if(pDevContext->device_open)
+    p = pDevContext->device_getmsg();
+    ret = pDevContext->msg_transale(p,&msg);
+    if(ret)
     {
-        ret = pDevContext->device_open();
-    }
-    while(ret >= 0)
-    {
-        p = pDevContext->device_getmsg();
-        ret = pDevContext->msg_transale(p,&msg);
-        if(ret)
-        {
-            //将消息传递出去
-        }
+        //将消息传递出去
     }
     return NULL;
 }

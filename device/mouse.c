@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <sys/poll.h>
 #include <pthread.h>
+#include "queue.h"
 #define MSG     int
 
 
@@ -17,6 +18,7 @@ int device_close();
 
 static int gMousefd = -1;
 static void pthread_create_detached(void *(*thread_func)(void *),void *param);
+static msg_queue_t *gPmsgHead = NULL;
 
 static void *device_listen(void *p)
 {
@@ -29,7 +31,7 @@ static void *device_listen(void *p)
         if(poll(stPoll,1,1) > 0)
         {
            read(stPoll[0].fd,buf,sizeof(buf)); 
-           printf("%d\t%d\t%d\t%d\n",buf[0],buf[1],buf[2],buf[3]);
+           SendMsg(gPmsgHead,buf);
         }
     }
 }
@@ -51,11 +53,10 @@ int mouse_init()
     u8  buf[4];
     old_flags = fcntl(gMousefd,F_GETFL,0);
     printf("old_flags:%d\n",old_flags);
-    ret = fcntl(gMousefd,F_SETFL,O_RDWR|O_NONBLOCK);
+    ret = fcntl(gMousefd,F_SETFL,O_NONBLOCK);
     if(write(gMousefd,imps2_param,sizeof(imps2_param) == sizeof(imps2_param)))
     {
         //while(read(gMousefd,buf,sizeof(buf)));
-
     }
     ret |= fcntl(gMousefd,F_SETFL,old_flags);
     printf("ret:%d\n",ret);
@@ -66,26 +67,25 @@ int device_open()
 {
     gMousefd = open(DEV_MOUSE,O_RDWR);
     printf("mouse fd:%d\n",gMousefd);
-    if(gMousefd >= 0 && mouse_init() >= 0)
+    if(gMousefd >= 0 && mouse_init() >= 0 && (gPmsgHead = CreateMsgQueue(100,4)))
     {
-        pthread_create_detached(device_listen,NULL);
+        pthread_create_detached(device_listen,gPmsgHead);
     }
     return gMousefd;
 }
 
 void *device_getmsg()
 {
-    static int rd ;
-    rd = rand();
-    sleep(1);
-    printf("%s\trd:%d\n",__func__,rd);
-    return &rd;
+    static u8 buf[4];
+    if(RecvMsg(gPmsgHead,buf,1) < 0)
+        return NULL;
+    return buf;
 }
 
 int msg_transale(void *context,MSG *Msg)
 {
-    int randsum = *(int *)context;
-    *Msg = randsum + 1;
+    u8 *buf = context;
+    printf("buf:%d\t%d\t%d\t%d\n",buf[0],buf[1],buf[2],buf[3]);
     return 1;
 }
 
