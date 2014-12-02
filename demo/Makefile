@@ -1,4 +1,5 @@
-CC :=gcc -g -Wall
+CC ?=gcc
+CFLAG ?=-g -Wall
 SRC :=$(wildcard *.c)
 OBJ :=$(SRC:%.c=%.o)
 main:$(OBJ)

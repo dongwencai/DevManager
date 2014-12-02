@@ -32,6 +32,7 @@
 PLISTINFO   device_list = NULL;
 static int g_msgid;
 static int g_retmsgid = -1;         
+
 static int load_config(const char *config,PLISTINFO pDevList);
 static int register_device_ex(DEVCONTEXT *pContext);
 static void *device_thread(void *pContext);
@@ -184,12 +185,9 @@ static int register_device_ex(PDEVCONTEXT pContext)
         pContext->msg_transale = dlsym(pContext->pHdl,"msg_transale");
         pContext->device_close = dlsym(pContext->pHdl,"device_close");
         pContext->device_ctl = dlsym(pContext->pHdl,"device_ctl");
+        return DEV_SUC;
     }
-    else
-    {
-        return -DEV_FAIL;
-    }
-    return DEV_SUC;
+    return -DEV_FAIL;
 }
 
 DEV_STATUS unregister_device(const char *name)
@@ -227,9 +225,9 @@ static void *device_thread(void *pContext)
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS,NULL);
     if(pDevContext->device_open)
     {
-        pDevContext->device_open();
+        ret = pDevContext->device_open();
     }
-    while(1)
+    while(ret >= 0)
     {
         p = pDevContext->device_listen();
         ret = pDevContext->msg_transale(p,&msg);
@@ -248,19 +246,6 @@ static int nameCompare(void *src,void *dst)
     return strncmp(pSrc->so_name,pDst->so_name,SONAMELEN);
 }
 
-int device_contrl(char *name,int cmd,void *p)
-{
-    PLIST plink = NULL;
-    int ret = -1;
-    plink = lookup_node(device_list,(void *)name);
-    if(plink)
-    {
-       PDEVCONTEXT pContext =(PDEVCONTEXT) plink->data; 
-       if(pContext->device_ctl)
-           ret = pContext->device_ctl(cmd,p);
-    }
-    return ret;
-}
 static int  msg_loop()
 {
     PDEVMSG pMsg;
@@ -318,7 +303,12 @@ static void *dev_msg_loop(void *p)
                     msgsnd(g_retmsgid,pMsg,MSGMAXSIZE,0);
                 }
             }
-
+            if(pMsg->somsg.ret)
+            {
+                pMsg->somsg.ret = ret;
+                pMsg->type = pMsg->timing;
+                msgsnd(g_retmsgid,pMsg,MSGMAXSIZE,0);
+            }
         }
     }
     return NULL;
