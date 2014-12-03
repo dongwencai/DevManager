@@ -4,6 +4,9 @@
 #define     UNREG_DEV   0x1001
 #define     DEV_CTRL    0x1002
 
-int register_dev(char *so_name);
+extern int register_dev(char *so_name);
 
+extern int unregister_dev(unsigned int hdl);
+
+extern int devctl(unsigned int hdl,int cmd,void *param,int len);
 #endif

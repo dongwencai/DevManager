@@ -3,9 +3,9 @@ CFLAG ?=-g -Wall
 SRC :=$(wildcard *.c)
 OBJ :=$(SRC:%.c=%.o)
 deviceManager:$(OBJ)
-	$(CC) -o $@ $^ -lpthread -ldl
+	$(CC) $(CFLAG) -o $@ $^ -lpthread -ldl
 $(OBJ):%.o:%.c
-	$(CC) -c $^ -o $@
+	$(CC) $(CFLAG) -c $^ -o $@
 dev:
 	cd device && make
 devclean:

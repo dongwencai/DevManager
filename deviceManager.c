@@ -34,13 +34,14 @@ static int g_msgid;
 static int g_retmsgid = -1;         
 
 static int load_config(const char *config,PLISTINFO pDevList);
-static int register_device_ex(DEVCONTEXT *pContext);
+static device_t register_device_ex(DEVCONTEXT *pContext);
 static void *device_thread(void *pContext);
-static int nameCompare(void *src,void *dst);
+static int nameCompare(void *src,void *dst,int offset,int len);
 static int unregister_device_ex(PLIST link);
 static int  msg_init();
 static int  msg_loop();
 static void *dev_msg_loop(void *p);
+static int dev_ioctl(PDEVMSG pMsg);
 static int msg_release();
 
 int pthread_create_detached(void *(*thread_func)(void *),void *p)
@@ -77,35 +78,25 @@ static int load_config(const char *config,PLISTINFO pDevList)
     FILE *fp = NULL;
     int cnt = 0;
     PLIST link = NULL;
-    DEVCONTEXT context;
+    char so_name[256];
     fp = fopen(config,"r");
     if(!fp)     return -DEV_FAIL;
     while(1)
     {
-       if(fgets(context.so_name,256,fp))
+       if(fgets(so_name,256,fp))
        {
-          strip_illegal_char(context.so_name);
-          if(context.so_name[0] == '#')
+          strip_illegal_char(so_name);
+          if(so_name[0] == '#')
           {
               continue;
           }
-          if(register_device_ex(&context) > 0)
-          {
-              link = list_add(pDevList,&context);
-              if(link)
-              {
-                  PDEVCONTEXT pContext = (PDEVCONTEXT) link->data;
-                  pthread_create(&pContext->threadHdl,NULL,device_thread,(void *)pContext);
-                  cnt ++;
-              }
-          }
+          if(register_device(so_name) >= 0 && ++ cnt);
        }
        else
           break; 
     }
     fclose(fp);
     return cnt;
-    
 }
 
 static int msg_release()
@@ -141,9 +132,9 @@ int main(int argc,char *argv[])
         exit(-1);
     }
     device_list = create_list(sizeof(DEVCONTEXT),nameCompare);
-    if(device_list && load_config(p_config_name,device_list) > 0 && msg_init() > 0)
+    if(device_list && load_config(p_config_name,device_list) >= 0 && msg_init() > 0)
     {
-        pthread_create_detached(dev_msg_loop,NULL);
+        //pthread_create_detached(dev_msg_loop,NULL);
         msg_loop();
     }
     msg_release();
@@ -151,17 +142,17 @@ int main(int argc,char *argv[])
     return 0;
 }
 
-DEV_STATUS register_device(const char *name)
+device_t register_device(const char *name)
 {
     PLIST link = NULL;
     DEVCONTEXT context;
     PDEVCONTEXT pContext;
-    printf("%s\t%d\t%s\n",__func__,__LINE__,name);
-    link = lookup_node(device_list,(void *)name);
+    device_t devHdl = 0;
+    link = lookup_node(device_list,(void *)name,MEMBER_OFF(DEVCONTEXT,so_name),strlen(name) + 1);
     if(!link)
     {
         strncpy(context.so_name,name,SONAMELEN);
-        if(register_device_ex(&context) > 0)
+        if((devHdl = register_device_ex(&context)) > 0)
         {
             if(context.device_open && context.device_open() >= 0)
             {
@@ -171,33 +162,36 @@ DEV_STATUS register_device(const char *name)
             {
                 pContext = (PDEVCONTEXT)link->data;
                 pthread_create(&pContext->threadHdl,NULL,device_thread,(void *)pContext);
-                return DEV_SUC;
+                return devHdl;
             }
         }
     }
-    return -DEV_FAIL;
+    return 0;
 }
 
-static int register_device_ex(PDEVCONTEXT pContext)
+static device_t register_device_ex(PDEVCONTEXT pContext)
 {
-    pContext->pHdl = dlopen(pContext->so_name,RTLD_NOW); 
-    if(pContext->pHdl)
+    void *sohdl = NULL;
+    sohdl = dlopen(pContext->so_name,RTLD_NOW); 
+    printf("%s\t%d\t%u\n",__func__,__LINE__,(unsigned int)sohdl);
+    if(sohdl)
     {
-        pContext->device_open = dlsym(pContext->pHdl,"device_open");
-        pContext->device_getmsg = dlsym(pContext->pHdl,"device_getmsg");
-        pContext->msg_transale = dlsym(pContext->pHdl,"msg_transale");
-        pContext->device_close = dlsym(pContext->pHdl,"device_close");
-        pContext->device_ctl = dlsym(pContext->pHdl,"device_ctl");
-        return DEV_SUC;
+        pContext->sohdl = (device_t)sohdl;
+        pContext->device_open = dlsym(sohdl,"device_open");
+        pContext->device_getmsg = dlsym(sohdl,"device_getmsg");
+        pContext->msg_transale = dlsym(sohdl,"msg_transale");
+        pContext->device_close = dlsym(sohdl,"device_close");
+        pContext->device_ctl = dlsym(sohdl,"device_ctl");
+        return  (device_t)pContext->sohdl;
     }
-    return -DEV_FAIL;
+    return 0;
 }
 
-DEV_STATUS unregister_device(const char *name)
+int unregister_device(device_t hdl)
 {
     PLIST plink = NULL;
     int ret = -1;
-    plink = lookup_node(device_list,(void *)name);
+    plink = lookup_node(device_list,(void *)&hdl,MEMBER_OFF(DEVCONTEXT,sohdl),sizeof(hdl));
     if(plink)
     {
         ret = unregister_device_ex(plink);
@@ -212,6 +206,7 @@ static int unregister_device_ex(PLIST link)
     pContext = (PDEVCONTEXT)link->data;
     if(pContext->device_close)
         pContext->device_close();
+    dlclose((void *)pContext->sohdl);
     pthread_cancel(pContext->threadHdl);
     pthread_join(pContext->threadHdl,NULL);
     list_del(device_list,link);
@@ -226,55 +221,77 @@ static void *device_thread(void *pContext)
     MSG msg;
     pDevContext = (DEVCONTEXT *)pContext;
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS,NULL);
-    p = pDevContext->device_getmsg();
-    ret = pDevContext->msg_transale(p,&msg);
-    if(ret)
+    while(1)
     {
-        //将消息传递出去
+        p = pDevContext->device_getmsg();
+        ret = pDevContext->msg_transale(p,&msg);
+        if(ret >= 0)
+        {
+            //将消息传递出去
+        }
     }
     return NULL;
 }
 
-static int nameCompare(void *src,void *dst)
+static int nameCompare(void *src,void *dst,int offset,int len)
 {
-    PDEVCONTEXT pSrc = (PDEVCONTEXT)src;
     PDEVCONTEXT pDst = (PDEVCONTEXT)dst;
-    return strncmp(pSrc->so_name,pDst->so_name,SONAMELEN);
+    printf("%s\t%d\t%u\t%u\n",__func__,__LINE__,*(unsigned int *)pDst->sohdl,*(unsigned int*)src);
+    return memcmp(src,(char *)pDst+offset,len);
 }
 
 static int  msg_loop()
 {
     PDEVMSG pMsg;
     int ret;
+    device_t hdl = 0;
     pMsg = (PDEVMSG)malloc(sizeof(DEVMSG)+512);
     while(pMsg)
     {
-        ret = msgrcv(g_msgid,pMsg,MSGMAXSIZE,SYSMSGTYPE,0);
+        ret = msgrcv(g_msgid,pMsg,MSGMAXSIZE,DEVMSGTYPE,0);
         if(ret > 0)
         {
-            int cmd = pMsg->devmsg.cmd;  
-
+            int cmd = pMsg->cmd;  
             switch(cmd)
             {
                 case REG_DEV:
-                    ret = register_device((char *)pMsg->devmsg.param);
+                    hdl = register_device((char *)pMsg->param);
                     break;
                 case UNREG_DEV:
-                    ret = unregister_device((char *)pMsg->devmsg.param);
+                    ret = unregister_device(pMsg->sohdl);
                     break;
+                case DEV_CTRL:
+                    ret =  dev_ioctl(pMsg);
                 default:
                     break;
             }
         }
-        if(pMsg->devmsg.ret)
+        if(pMsg->ret)
         {
-            pMsg->devmsg.ret = ret;
+            pMsg->ret = ret;
+            pMsg->sohdl = hdl;
             pMsg->type = pMsg->timing;
             msgsnd(g_retmsgid,pMsg,MSGMAXSIZE,0);
         }
     }
     return DEV_SUC;
 }
+static int dev_ioctl(PDEVMSG pMsg)
+{
+    int ret = -1;
+    PLIST plink = NULL; 
+    PDEVCONTEXT pContext = NULL;
+    plink = lookup_node(device_list,(void *)&pMsg->sohdl,MEMBER_OFF(DEVCONTEXT,sohdl),sizeof(pMsg->sohdl));
+    if(plink)
+    {
+        printf("%s\t%d\t%x\n",__func__,__LINE__,(unsigned int)plink);    
+        pContext = (PDEVCONTEXT)plink->data;
+        if(pContext->device_ctl)
+            ret = pContext->device_ctl(pMsg->cmd,pMsg->param);
+    }
+    return ret;
+}
+/*
 static void *dev_msg_loop(void *p)
 {
     int ret;
@@ -287,7 +304,7 @@ static void *dev_msg_loop(void *p)
         ret = msgrcv(g_msgid,pMsg,MSGMAXSIZE,DEVMSGTYPE,IPC_NOWAIT);
         if(ret > 0)
         {
-            pLink = lookup_node(device_list,pMsg->somsg.so_name);           
+            //pLink = lookup_node(device_list,pMsg->somsg.so_name);           
             if(pLink)
             {
                 pContext = (PDEVCONTEXT)pLink->data;
@@ -309,3 +326,4 @@ static void *dev_msg_loop(void *p)
     }
     return NULL;
 }
+*/

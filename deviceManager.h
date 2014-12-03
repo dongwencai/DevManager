@@ -3,10 +3,13 @@
 
 #define MSG     int
 #define SONAMELEN 256
+typedef unsigned int device_t;
+
+#define MEMBER_OFF(type,member)    ((unsigned int)(&(((type *)0)->member)))
 
 typedef struct {
     char so_name[SONAMELEN];
-    void *pHdl;
+    device_t sohdl;
     pthread_t threadHdl;
     int (*device_open)();
     int (*device_ctl)(int cmd,void *p);
@@ -21,9 +24,9 @@ typedef enum{
     DEV_NOT_EXIST,
 }DEV_STATUS;
 
-extern DEV_STATUS unregister_device(const char *name);
+extern int unregister_device(device_t hdl);
 
-extern DEV_STATUS register_device(const char *name);
+extern device_t register_device(const char *name);
 
 extern int device_contrl(char *name,int cmd,void *p);
 

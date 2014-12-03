@@ -4,7 +4,9 @@
 
 int main()
 {
-    register_dev("./device/mouse.so");
+    unsigned int hdl;
+    hdl = register_dev("./device/mouse.so");
+    printf("%s\t%d\n",__func__,hdl);
     getchar();
-    unregister_dev("./device/testDev1.so");
+    unregister_dev(hdl);
 }

@@ -6,31 +6,20 @@
 #define DEVICEMANAGER "/ipc/msg/DevManager"     
 #define DEVICERETMSG  "/ipc/msg/DeviceRetMsg"
 #define DEVICECONFIG    "./deviceList.conf"
-#define SYSMSGTYPE 1
+//#define SYSMSGTYPE 1
 #define DEVMSGTYPE 2
 #define DEVMSGRET  3
 #define MSGMAXSIZE 512
+//typedef unsigned int device_t;
 
 typedef struct{
     long type;
     long timing;                        //当前时间s和us组合值，为了当前唯一
-    struct{
-        int cmd;
-        int ret;
-        char param[0];
-    }devmsg;
+    unsigned int sohdl;
+    int cmd;
+    int ret;
+    char param[0];
 }__attribute__((packed, aligned(1))) DEVMSG,*PDEVMSG;
-
-typedef struct{
-    long type;
-    long timing;
-    struct{
-        char so_name[256];
-        int ret;
-        int cmd;
-        char param[0];
-    }somsg;
-}__attribute__((packed, aligned(1))) SOMSG,*PSOMSG;
 
 #endif
 

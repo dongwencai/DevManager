@@ -5,7 +5,7 @@
 
 static PLIST node_del(PLIST pHead,PLIST pNode);
 
-PLISTINFO create_list(int nsize,int (*cbcompare)(void *,void *))
+PLISTINFO create_list(int nsize,int (*cbcompare)(void *,void *,int ,int ))
 {
     PLISTINFO pListInfo = NULL;
     if(pListInfo = malloc(sizeof(LISTINFO)))
@@ -34,7 +34,7 @@ PLIST list_add(PLISTINFO pListInfo, void *pData)
     return pNewNode;
 }
 //compare 查找对比函数 相等返回0
-PLIST lookup_node(PLISTINFO pListInfo,void *pkey)
+PLIST lookup_node(PLISTINFO pListInfo,void *pkey,int offset,int len)
 {
     PLIST pNode = NULL;
     if(pListInfo && pListInfo->compare)
@@ -43,7 +43,7 @@ PLIST lookup_node(PLISTINFO pListInfo,void *pkey)
         pNode = pListInfo->phead;
         while(pNode)
         {
-            if(!pListInfo->compare(pkey,pNode->data))
+            if(!pListInfo->compare(pkey,pNode->data,offset,len))
                 break;
             pNode = pNode->next;
         }
