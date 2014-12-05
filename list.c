@@ -81,7 +81,7 @@ static PLIST node_del(PLIST pHead,PLIST pNode)
             if((temp)->next == pNode)
             {
                 temp->next = pNode->next;
-                free(temp);
+                free(temp->next);
                 break;
             }
             temp = temp->next;

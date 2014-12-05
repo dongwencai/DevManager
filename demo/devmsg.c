@@ -44,7 +44,6 @@ int register_dev(char *so_name)
     strcpy(pMsg->param,so_name);
     msgsnd(g_devMsgid,pMsg,512,IPC_NOWAIT);
     msgrcv(g_retMsgid,pMsg,512,ts,0);
-    printf("%s\t%d\t%d\n",__func__,__LINE__,pMsg->ret);
     return pMsg->sohdl;
 }
 
@@ -68,7 +67,6 @@ int unregister_dev(device_t hdl)
     pMsg->sohdl = hdl;
     msgsnd(g_devMsgid,pMsg,512,0);
     msgrcv(g_retMsgid,pMsg,512,ts,0);
-    printf("%s\t%d\t%d\n",__func__,__LINE__,pMsg->ret);
     return pMsg->ret;
 }
 

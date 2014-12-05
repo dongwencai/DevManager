@@ -44,17 +44,6 @@ static void *dev_msg_loop(void *p);
 static int dev_ioctl(PDEVMSG pMsg);
 static int msg_release();
 
-int pthread_create_detached(void *(*thread_func)(void *),void *p)
-{
-    pthread_t thread_id;
-    pthread_attr_t attr;
-    int ret ;
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
-    ret = pthread_create(&thread_id,&attr,thread_func,p);
-    pthread_attr_destroy(&attr);
-    return ret;
-}
 void print_all_divice()
 {
     PLIST pHead = NULL;
@@ -172,8 +161,8 @@ device_t register_device(const char *name)
 static device_t register_device_ex(PDEVCONTEXT pContext)
 {
     void *sohdl = NULL;
+    int ret = -1;
     sohdl = dlopen(pContext->so_name,RTLD_NOW); 
-    printf("%s\t%d\t%u\n",__func__,__LINE__,(unsigned int)sohdl);
     if(sohdl)
     {
         pContext->sohdl = (device_t)sohdl;
@@ -202,15 +191,15 @@ int unregister_device(device_t hdl)
 static int unregister_device_ex(PLIST link)
 {
     PDEVCONTEXT pContext = NULL;
-    if(!link)   return -DEV_FAIL;
+    int ret = 0;
     pContext = (PDEVCONTEXT)link->data;
     if(pContext->device_close)
         pContext->device_close();
-    dlclose((void *)pContext->sohdl);
     pthread_cancel(pContext->threadHdl);
     pthread_join(pContext->threadHdl,NULL);
-    list_del(device_list,link);
-    return DEV_SUC;
+    ret = dlclose((void *)(pContext->sohdl));
+    ret |= list_del(device_list,link);
+    return ret;
 }
 
 static void *device_thread(void *pContext)
@@ -236,8 +225,7 @@ static void *device_thread(void *pContext)
 static int nameCompare(void *src,void *dst,int offset,int len)
 {
     PDEVCONTEXT pDst = (PDEVCONTEXT)dst;
-    printf("%s\t%d\t%u\t%u\n",__func__,__LINE__,*(unsigned int *)pDst->sohdl,*(unsigned int*)src);
-    return memcmp(src,(char *)pDst+offset,len);
+    return memcmp(src,(void *)((unsigned int)pDst+offset),len);
 }
 
 static int  msg_loop()
@@ -251,8 +239,8 @@ static int  msg_loop()
         ret = msgrcv(g_msgid,pMsg,MSGMAXSIZE,DEVMSGTYPE,0);
         if(ret > 0)
         {
-            int cmd = pMsg->cmd;  
-            switch(cmd)
+            ret = -1;
+            switch(pMsg->cmd)
             {
                 case REG_DEV:
                     hdl = register_device((char *)pMsg->param);
@@ -284,7 +272,6 @@ static int dev_ioctl(PDEVMSG pMsg)
     plink = lookup_node(device_list,(void *)&pMsg->sohdl,MEMBER_OFF(DEVCONTEXT,sohdl),sizeof(pMsg->sohdl));
     if(plink)
     {
-        printf("%s\t%d\t%x\n",__func__,__LINE__,(unsigned int)plink);    
         pContext = (PDEVCONTEXT)plink->data;
         if(pContext->device_ctl)
             ret = pContext->device_ctl(pMsg->cmd,pMsg->param);

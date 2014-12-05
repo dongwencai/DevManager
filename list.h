@@ -15,7 +15,7 @@ typedef struct{
 }LISTINFO,*PLISTINFO;
 
 typedef enum{
-    LIST_SUC,
+    LIST_SUC = 1,
     LIST_FAIL,
 }LIST_STATUS;
 
