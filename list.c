@@ -66,25 +66,23 @@ LIST_STATUS list_del(PLISTINFO pListInfo,PLIST pNode)
 
 static PLIST node_del(PLIST pHead,PLIST pNode)
 {
-    PLIST temp = NULL;
-    if(pHead == pNode)
+    PLIST prev = pHead;
+    if(prev == pNode)
     {
-        temp = pHead;
         pHead = pHead->next;
-        free(temp);
+        free(prev);
     }
     else
     {
-        temp = pHead;
-        while(temp)
+        while(prev)
         {
-            if((temp)->next == pNode)
+            if(prev->next == pNode)
             {
-                temp->next = pNode->next;
-                free(temp->next);
+                prev->next = pNode->next;
+                free(pNode);
                 break;
             }
-            temp = temp->next;
+            prev = prev->next;
         }
     }
     return pHead;
