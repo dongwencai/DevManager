@@ -70,7 +70,7 @@ static PLIST node_del(PLIST pHead,PLIST pNode)
     if(prev == pNode)
     {
         pHead = pHead->next;
-        free(prev);
+        free(pNode);
     }
     else
     {
