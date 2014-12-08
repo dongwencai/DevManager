@@ -28,6 +28,7 @@
 #include "deviceManager.h"
 #include "devmsg.h"
 #include "config.h"
+#include "event.h"
 
 PLISTINFO   device_list = NULL;
 static int g_msgid;
@@ -207,7 +208,7 @@ static void *device_thread(void *pContext)
     PDEVCONTEXT pDevContext = NULL;
     int ret = 0;
     void *p = NULL;
-    MSG msg;
+    msg_t msg;
     pDevContext = (DEVCONTEXT *)pContext;
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS,NULL);
     while(1)
@@ -278,39 +279,3 @@ static int dev_ioctl(PDEVMSG pMsg)
     }
     return ret;
 }
-/*
-static void *dev_msg_loop(void *p)
-{
-    int ret;
-    PLIST   pLink = NULL;
-    PDEVCONTEXT pContext = NULL;
-    PSOMSG pMsg;
-    pMsg = (PSOMSG)malloc(sizeof(SOMSG) + 256);
-    while(pMsg)
-    {
-        ret = msgrcv(g_msgid,pMsg,MSGMAXSIZE,DEVMSGTYPE,IPC_NOWAIT);
-        if(ret > 0)
-        {
-            //pLink = lookup_node(device_list,pMsg->somsg.so_name);           
-            if(pLink)
-            {
-                pContext = (PDEVCONTEXT)pLink->data;
-                ret = pContext->device_ctl(pMsg->somsg.cmd,pMsg->somsg.param);
-                if(pMsg->somsg.ret)
-                {
-                    pMsg->somsg.ret = ret;
-                    pMsg->type = pMsg->timing;
-                    msgsnd(g_retmsgid,pMsg,MSGMAXSIZE,0);
-                }
-            }
-            if(pMsg->somsg.ret)
-            {
-                pMsg->somsg.ret = ret;
-                pMsg->type = pMsg->timing;
-                msgsnd(g_retmsgid,pMsg,MSGMAXSIZE,0);
-            }
-        }
-    }
-    return NULL;
-}
-*/

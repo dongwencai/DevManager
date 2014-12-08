@@ -92,7 +92,7 @@ int device_open()
 
 void *device_getmsg()
 {
-    static u8 buf[4];
+    static uint8_t buf[4];
     if(RecvMsg(mouseConf.msg,buf,1) < 0)
         return NULL;
     return buf;
@@ -100,9 +100,9 @@ void *device_getmsg()
 
 int msg_transale(void *context,msg_t *pMsg)
 {
-    u8 *buf = context;
+    uint8_t *buf = context;
     static int lbtn_down = FALSE,rbtn_down = FALSE,mbtn_down = FALSE;
-    //printf("buf:%d\t%d\t%d\t%d\n",buf[0],buf[1],buf[2],buf[3]);
+    printf("buf:%d\t%d\t%d\t%d\n",buf[0],buf[1],buf[2],buf[3]);
     if(buf[0] & MOUSE_LBTN)
     {
         lbtn_down = TRUE;

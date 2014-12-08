@@ -1,7 +1,7 @@
 #ifndef __DEVICEMANAGER_H__
 #define __DEVICEMANAGER_H__
-
-#define MSG     int
+#include <pthread.h>
+#include "event.h"
 #define SONAMELEN 256
 typedef unsigned int device_t;
 
@@ -14,7 +14,7 @@ typedef struct {
     int (*device_open)();
     int (*device_ctl)(int cmd,void *p);
     void *(*device_getmsg)();
-    int (*msg_transale)(void *context,MSG *Msg);
+    int (*msg_transale)(void *context,msg_t *Msg);
     int (*device_close)();
 }DEVCONTEXT,*PDEVCONTEXT;
 
