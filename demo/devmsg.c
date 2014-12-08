@@ -6,10 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+
 #define TIMESTAMP(s,us)     ((s & 0xffff) | ((us & 0x7fff) << 16))
 static int g_devMsgid = -1;
 static int g_retMsgid = -1;
 typedef unsigned int device_t ;
+
 static int msgid_init()
 {
     key_t key;

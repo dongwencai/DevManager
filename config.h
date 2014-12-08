@@ -3,6 +3,7 @@
 
 //不可修改
 #define IPCKEY 0x1
+#define MSGANALY      "/ipc/msg/MsgAnalysis"
 #define DEVICEMANAGER "/ipc/msg/DevManager"     
 #define DEVICERETMSG  "/ipc/msg/DeviceRetMsg"
 #define DEVICECONFIG    "./deviceList.conf"

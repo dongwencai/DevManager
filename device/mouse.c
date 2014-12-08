@@ -8,21 +8,43 @@
 #include <pthread.h>
 #include <stdint.h>
 #include "queue.h"
-#define MSG     int
+#include "event.h"
+#ifndef TRUE
+#define TRUE    1
+#endif
+
+#ifndef FALSE
+#define FALSE   0
+#endif
+typedef struct{
+    int msg_id;
+    int event;
+    uint32_t param1;
+    uint32_t param2;
+}dev_msg_t;
+
 static struct mouse_config{
     int fd;
     pthread_t th;
     uint32_t  dbclicktimes;
-    uint16_t posx,posy;
     msg_queue_t *msg;
 }mouseConf;
 
 int device_open();
 int device_ctl(int cmd,void *p);
 void *device_getmsg();
-int msg_transale(void *context,MSG *Msg);
+int msg_transale(void *context,msg_t *Msg);
 int device_close();
 
+void mouse_clean(int fd)
+{
+   struct pollfd stPoll[1] = {fd,POLLIN};
+   u8   buf[4];
+   while(poll(stPoll,1,1) > 0)
+   {
+       read(stPoll[0].fd,buf,sizeof(buf));
+   }
+}
 static void *device_listen(void *p)
 {
     struct pollfd stPoll[1] = {0};
@@ -42,18 +64,17 @@ static void *device_listen(void *p)
 
 int mouse_init()
 {
-    int ret = -1;
-    int old_flags;
+    int ret = 1;
     u8  imps2_param [] = {243,200,243,100,243,80}; 
     u8  buf[4];
-    old_flags = fcntl(mouseConf.fd,F_GETFL,0);
-    printf("old_flags:%d\n",old_flags);
-    ret = fcntl(mouseConf.fd,F_SETFL,O_NONBLOCK);
     if(write(mouseConf.fd,imps2_param,sizeof(imps2_param) == sizeof(imps2_param)))
     {
-        //while(read(mouseConf.fd,buf,sizeof(buf)));
+        mouse_clean(mouseConf.fd);
     }
-    ret |= fcntl(mouseConf.fd,F_SETFL,old_flags);
+    else
+    {
+        ret = -1;
+    }
     printf("ret:%d\n",ret);
     return ret;
 }
@@ -77,10 +98,50 @@ void *device_getmsg()
     return buf;
 }
 
-int msg_transale(void *context,MSG *Msg)
+int msg_transale(void *context,msg_t *pMsg)
 {
     u8 *buf = context;
-    printf("buf:%d\t%d\t%d\t%d\n",buf[0],buf[1],buf[2],buf[3]);
+    static int lbtn_down = FALSE,rbtn_down = FALSE,mbtn_down = FALSE;
+    //printf("buf:%d\t%d\t%d\t%d\n",buf[0],buf[1],buf[2],buf[3]);
+    if(buf[0] & MOUSE_LBTN)
+    {
+        lbtn_down = TRUE;
+        pMsg->events = MOUSE_LBTN_DOWN;
+    }
+    else
+    {
+        if(lbtn_down)
+        {
+            lbtn_down = FALSE;
+            pMsg->events = MOUSE_LBTN_UP;
+        }
+    }
+    if(buf[0] & MOUSE_RBTN)
+    {
+        rbtn_down = TRUE; 
+        pMsg->events = MOUSE_RBTN_DOWN;
+    }
+    else
+    {
+        if(rbtn_down)
+        {
+            rbtn_down = FALSE;
+            pMsg->events = MOUSE_RBTN_UP;
+        }
+    }
+    if(buf[0] & MOUSE_MBTN)
+    {
+        mbtn_down = TRUE;
+        pMsg->events = MOUSE_MBTN_DOWN;
+    }
+    else
+    {
+        if(mbtn_down)
+        {
+            mbtn_down = FALSE;
+            pMsg->events = MOUSE_MBTN_UP;
+        }
+    }
     return 1;
 }
 
